@@ -27,6 +27,9 @@ from logs import setup_logs_system
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN', 'VOTRE_TOKEN_BOT')
 DISCORD_GUILD_ID = '1005763703335034970'
 
+# Configuration du canal d'arrivée/départ
+WELCOME_CHANNEL_ID = 1400136710012014622
+
 # Configuration du bot Discord
 intents = discord.Intents.default()
 intents.message_content = True
@@ -127,12 +130,78 @@ async def on_member_join(member):
     """Événement quand un membre rejoint"""
     if str(member.guild.id) == DISCORD_GUILD_ID:
         print(f"👋 Nouveau membre: {member.name} ({member.id})")
+        
+        # Envoyer le message d'arrivée dans le canal spécifié
+        try:
+            welcome_channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+            if welcome_channel:
+                embed = discord.Embed(
+                    title="🎉 Nouveau Membre !",
+                    description=f"Bienvenue {member.mention} dans le serveur Seykoofx !",
+                    color=0x00ff00,
+                    timestamp=datetime.now()
+                )
+                embed.add_field(
+                    name="👤 Membre",
+                    value=f"{member.name}#{member.discriminator}",
+                    inline=True
+                )
+                embed.add_field(
+                    name="🆔 ID",
+                    value=member.id,
+                    inline=True
+                )
+                embed.add_field(
+                    name="📅 Arrivée",
+                    value=f"<t:{int(datetime.now().timestamp())}:R>",
+                    inline=True
+                )
+                embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_footer(text="Seykoofx - Système d'arrivée")
+                
+                await welcome_channel.send(embed=embed)
+                print(f"✅ Message d'arrivée envoyé pour {member.name}")
+        except Exception as e:
+            print(f"❌ Erreur message d'arrivée: {e}")
 
 @bot.event
 async def on_member_remove(member):
     """Événement quand un membre quitte"""
     if str(member.guild.id) == DISCORD_GUILD_ID:
         print(f"👋 Membre parti: {member.name} ({member.id})")
+        
+        # Envoyer le message de départ dans le canal spécifié
+        try:
+            welcome_channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+            if welcome_channel:
+                embed = discord.Embed(
+                    title="👋 Membre Parti",
+                    description=f"{member.mention} a quitté le serveur Seykoofx.",
+                    color=0xff0000,
+                    timestamp=datetime.now()
+                )
+                embed.add_field(
+                    name="👤 Membre",
+                    value=f"{member.name}#{member.discriminator}",
+                    inline=True
+                )
+                embed.add_field(
+                    name="🆔 ID",
+                    value=member.id,
+                    inline=True
+                )
+                embed.add_field(
+                    name="📅 Départ",
+                    value=f"<t:{int(datetime.now().timestamp())}:R>",
+                    inline=True
+                )
+                embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_footer(text="Seykoofx - Système de départ")
+                
+                await welcome_channel.send(embed=embed)
+                print(f"✅ Message de départ envoyé pour {member.name}")
+        except Exception as e:
+            print(f"❌ Erreur message de départ: {e}")
 
 @bot.event
 async def on_member_update(before, after):

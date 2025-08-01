@@ -3,12 +3,80 @@ Système de Tickets - Seykoofx
 =============================
 
 Système de tickets avec 3 boutons et catégories spécifiques
+Version bilingue (Français/English)
 """
 
 import discord
 from discord.ext import commands
 from datetime import datetime
 import asyncio
+
+# Messages bilingues
+MESSAGES = {
+    "fr": {
+        "no_permission": "❌ Vous n'avez pas les permissions pour fermer ce ticket.",
+        "closing_ticket": "🔒 Fermeture du ticket en cours...",
+        "ticket_closed": "🎫 Ticket Fermé",
+        "ticket_closed_desc": "Ce ticket a été fermé. Merci de votre patience !",
+        "satisfaction_form": "📝 Formulaire de Satisfaction",
+        "satisfaction_form_desc": "Veuillez remplir notre formulaire de satisfaction :\nhttps://docs.google.com/forms/d/e/1FAIpQLSem2wEBEZzpx8-tjU4RIJHWHrYOuiOGE4qzRF_oH_qM4JqyeA/viewform?usp=header",
+        "closing_time": "⏰ Fermeture",
+        "closing_time_desc": "Ce canal sera supprimé dans 10 secondes.",
+        "already_ticket": "❌ Vous avez déjà un ticket ouvert : {ticket}",
+        "invalid_type": "❌ Type de ticket invalide.",
+        "category_not_found": "❌ Catégorie de tickets introuvable.",
+        "ticket_created": "✅ Votre ticket a été créé : {channel}",
+        "ticket_created_title": "🎫 Ticket Créé",
+        "ticket_created_desc": "Bienvenue {user} ! Votre ticket a été créé.",
+        "type": "Type",
+        "created_by": "Créé par",
+        "ticket_id": "ID Ticket",
+        "panel_title": "🎫 Système de Tickets Seykoofx",
+        "panel_desc": "Bienvenue ! Créez un ticket en cliquant sur l'un des boutons ci-dessous.",
+        "commande_desc": "Pour passer une commande ou demander un devis",
+        "service_desc": "Pour toute question ou problème technique",
+        "rejoindre_desc": "Pour postuler ou rejoindre l'équipe",
+        "info": "📋 Informations",
+        "info_desc": "Un membre de l'équipe vous répondra dans les plus brefs délais."
+    },
+    "en": {
+        "no_permission": "❌ You don't have permission to close this ticket.",
+        "closing_ticket": "🔒 Closing ticket in progress...",
+        "ticket_closed": "🎫 Ticket Closed",
+        "ticket_closed_desc": "This ticket has been closed. Thank you for your patience!",
+        "satisfaction_form": "📝 Satisfaction Form",
+        "satisfaction_form_desc": "Please fill out our satisfaction form:\nhttps://docs.google.com/forms/d/e/1FAIpQLSem2wEBEZzpx8-tjU4RIJHWHrYOuiOGE4qzRF_oH_qM4JqyeA/viewform?usp=header",
+        "closing_time": "⏰ Closing",
+        "closing_time_desc": "This channel will be deleted in 10 seconds.",
+        "already_ticket": "❌ You already have an open ticket: {ticket}",
+        "invalid_type": "❌ Invalid ticket type.",
+        "category_not_found": "❌ Ticket category not found.",
+        "ticket_created": "✅ Your ticket has been created: {channel}",
+        "ticket_created_title": "🎫 Ticket Created",
+        "ticket_created_desc": "Welcome {user}! Your ticket has been created.",
+        "type": "Type",
+        "created_by": "Created by",
+        "ticket_id": "Ticket ID",
+        "panel_title": "🎫 Seykoofx Ticket System",
+        "panel_desc": "Welcome! Create a ticket by clicking one of the buttons below.",
+        "commande_desc": "To place an order or request a quote",
+        "service_desc": "For any questions or technical issues",
+        "rejoindre_desc": "To apply or join the team",
+        "info": "📋 Information",
+        "info_desc": "A team member will respond to you as soon as possible."
+    }
+}
+
+def get_language(user: discord.Member) -> str:
+    """Détecte la langue de l'utilisateur (simplifié)"""
+    # Pour l'instant, on utilise français par défaut
+    # Vous pouvez ajouter une logique de détection plus sophistiquée
+    return "fr"
+
+def get_message(key: str, lang: str = "fr", **kwargs) -> str:
+    """Récupère un message dans la langue spécifiée"""
+    message = MESSAGES[lang].get(key, key)
+    return message.format(**kwargs) if kwargs else message
 
 # Configuration des catégories de tickets
 TICKET_CATEGORIES = {
@@ -61,27 +129,29 @@ class TicketControlView(discord.ui.View):
     
     @discord.ui.button(label="🔒 Fermer", style=discord.ButtonStyle.danger, custom_id="close_ticket")
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        lang = get_language(interaction.user)
+        
         if not has_ticket_permission(interaction.user):
-            await interaction.response.send_message("❌ Vous n'avez pas les permissions pour fermer ce ticket.", ephemeral=True)
+            await interaction.response.send_message(get_message("no_permission", lang), ephemeral=True)
             return
         
-        await interaction.response.send_message("🔒 Fermeture du ticket en cours...", ephemeral=True)
+        await interaction.response.send_message(get_message("closing_ticket", lang), ephemeral=True)
         
         # Créer l'embed de fermeture avec le formulaire
         embed = discord.Embed(
-            title="🎫 Ticket Fermé",
-            description="Ce ticket a été fermé. Merci de votre patience !",
+            title=get_message("ticket_closed", lang),
+            description=get_message("ticket_closed_desc", lang),
             color=0xff0000,
             timestamp=datetime.now()
         )
         embed.add_field(
-            name="📝 Formulaire de Satisfaction",
-            value="Veuillez remplir notre formulaire de satisfaction :\nhttps://docs.google.com/forms/d/e/1FAIpQLSem2wEBEZzpx8-tjU4RIJHWHrYOuiOGE4qzRF_oH_qM4JqyeA/viewform?usp=header",
+            name=get_message("satisfaction_form", lang),
+            value=get_message("satisfaction_form_desc", lang),
             inline=False
         )
         embed.add_field(
-            name="⏰ Fermeture",
-            value="Ce canal sera supprimé dans 10 secondes.",
+            name=get_message("closing_time", lang),
+            value=get_message("closing_time_desc", lang),
             inline=False
         )
         
@@ -109,13 +179,15 @@ class TicketControlView(discord.ui.View):
 
 async def create_ticket(interaction: discord.Interaction, ticket_type: str):
     """Crée un ticket"""
+    lang = get_language(interaction.user)
+    
     try:
         # Vérifier si l'utilisateur a déjà un ticket ouvert
         existing_ticket = discord.utils.get(interaction.guild.channels, 
                                          name=f"ticket-{interaction.user.name.lower()}")
         if existing_ticket:
             await interaction.response.send_message(
-                f"❌ Vous avez déjà un ticket ouvert : {existing_ticket.mention}",
+                get_message("already_ticket", lang, ticket=existing_ticket.mention),
                 ephemeral=True
             )
             return
@@ -123,12 +195,12 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str):
         # Récupérer la catégorie
         category_id = TICKET_CATEGORIES.get(ticket_type)
         if not category_id:
-            await interaction.response.send_message("❌ Type de ticket invalide.", ephemeral=True)
+            await interaction.response.send_message(get_message("invalid_type", lang), ephemeral=True)
             return
         
         category = interaction.guild.get_channel(category_id)
         if not category:
-            await interaction.response.send_message("❌ Catégorie de tickets introuvable.", ephemeral=True)
+            await interaction.response.send_message(get_message("category_not_found", lang), ephemeral=True)
             return
         
         # Créer le canal du ticket
@@ -152,21 +224,21 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str):
         
         # Créer l'embed de bienvenue
         embed = discord.Embed(
-            title="🎫 Ticket Créé",
-            description=f"Bienvenue {interaction.user.mention} ! Votre ticket a été créé.",
+            title=get_message("ticket_created_title", lang),
+            description=get_message("ticket_created_desc", lang, user=interaction.user.mention),
             color=0x00ff00,
             timestamp=datetime.now()
         )
-        embed.add_field(name="Type", value=ticket_type.replace("_", " ").title(), inline=True)
-        embed.add_field(name="Créé par", value=interaction.user.mention, inline=True)
-        embed.add_field(name="ID Ticket", value=f"ticket-{ticket_channel.id}", inline=True)
+        embed.add_field(name=get_message("type", lang), value=ticket_type.replace("_", " ").title(), inline=True)
+        embed.add_field(name=get_message("created_by", lang), value=interaction.user.mention, inline=True)
+        embed.add_field(name=get_message("ticket_id", lang), value=f"ticket-{ticket_channel.id}", inline=True)
         
         # Créer la vue de contrôle
         control_view = TicketControlView()
         
         await ticket_channel.send(embed=embed, view=control_view)
         await interaction.response.send_message(
-            f"✅ Votre ticket a été créé : {ticket_channel.mention}",
+            get_message("ticket_created", lang, channel=ticket_channel.mention),
             ephemeral=True
         )
         
@@ -201,31 +273,31 @@ async def create_ticket_panel(bot, guild):
         except:
             pass
         
-        # Créer l'embed du panel
+        # Créer l'embed du panel (version française par défaut)
         embed = discord.Embed(
-            title="🎫 Système de Tickets Seykoofx",
-            description="Bienvenue ! Créez un ticket en cliquant sur l'un des boutons ci-dessous.",
+            title=get_message("panel_title", "fr"),
+            description=get_message("panel_desc", "fr"),
             color=0x0099ff,
             timestamp=datetime.now()
         )
         embed.add_field(
             name="🛒 Commande",
-            value="Pour passer une commande ou demander un devis",
+            value=get_message("commande_desc", "fr"),
             inline=True
         )
         embed.add_field(
             name="🎧 Service Client",
-            value="Pour toute question ou problème technique",
+            value=get_message("service_desc", "fr"),
             inline=True
         )
         embed.add_field(
             name="👥 Nous Rejoindre",
-            value="Pour postuler ou rejoindre l'équipe",
+            value=get_message("rejoindre_desc", "fr"),
             inline=True
         )
         embed.add_field(
-            name="📋 Informations",
-            value="Un membre de l'équipe vous répondra dans les plus brefs délais.",
+            name=get_message("info", "fr"),
+            value=get_message("info_desc", "fr"),
             inline=False
         )
         
