@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 # Configuration des canaux de logs
-TICKET_LOG_CHANNEL_ID = 1399430693217505300  # Canal des tickets
+TICKET_LOG_CHANNEL_ID = 1400115679775948963  # Canal des logs de tickets
 
 class LogManager:
     """Gestionnaire centralisé des logs"""
