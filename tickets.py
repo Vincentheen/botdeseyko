@@ -222,16 +222,36 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str):
             overwrites=overwrites
         )
         
-        # Créer l'embed de bienvenue
+        # Créer l'embed de bienvenue avec le nouveau format
+        ticket_type_emoji = {
+            "commande": "🛒",
+            "service_client": "🎧", 
+            "nous_rejoindre": "👥"
+        }
+        
+        ticket_type_name = {
+            "commande": "Commande",
+            "service_client": "Service Client",
+            "nous_rejoindre": "Nous Rejoindre"
+        }
+        
         embed = discord.Embed(
-            title=get_message("ticket_created_title", lang),
-            description=get_message("ticket_created_desc", lang, user=interaction.user.mention),
+            title=f"🎫 Ticket {ticket_type_emoji.get(ticket_type, '📋')} {ticket_type_name.get(ticket_type, ticket_type.replace('_', ' ').title())}",
+            description=f"Bienvenue {interaction.user.mention} ! Votre ticket a été créé avec succès.",
             color=0x00ff00,
             timestamp=datetime.now()
         )
-        embed.add_field(name=get_message("type", lang), value=ticket_type.replace("_", " ").title(), inline=True)
-        embed.add_field(name=get_message("created_by", lang), value=interaction.user.mention, inline=True)
-        embed.add_field(name=get_message("ticket_id", lang), value=f"ticket-{ticket_channel.id}", inline=True)
+        embed.add_field(
+            name="📋 Instructions",
+            value="Décrivez votre demande en détail. Un membre de l'équipe vous répondra dès que possible.",
+            inline=False
+        )
+        embed.add_field(
+            name="🔧 Contrôles",
+            value="Utilisez les boutons ci-dessous pour gérer votre ticket.",
+            inline=False
+        )
+        embed.set_footer(text="Seykoofx - Support Pro")
         
         # Créer la vue de contrôle
         control_view = TicketControlView()
