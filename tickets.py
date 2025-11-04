@@ -36,6 +36,7 @@ MESSAGES = {
         "commande_desc": "Pour passer une commande ou demander un devis",
         "service_desc": "Pour toute question ou problème technique",
         "rejoindre_desc": "Pour postuler ou rejoindre l'équipe",
+        "partenariat_desc": "Pour proposer un partenariat ou une collaboration",
         "info": "📋 Informations",
         "info_desc": "Un membre de l'équipe vous répondra dans les plus brefs délais."
     },
@@ -62,6 +63,7 @@ MESSAGES = {
         "commande_desc": "To place an order or request a quote",
         "service_desc": "For any questions or technical issues",
         "rejoindre_desc": "To apply or join the team",
+        "partenariat_desc": "To propose a partnership or collaboration",
         "info": "📋 Information",
         "info_desc": "A team member will respond to you as soon as possible."
     }
@@ -82,7 +84,8 @@ def get_message(key: str, lang: str = "fr", **kwargs) -> str:
 TICKET_CATEGORIES = {
     "commande": 1399437778189553744,
     "service_client": 1399438065591910516,
-    "nous_rejoindre": 1399438265047715981
+    "nous_rejoindre": 1399438265047715981,
+    "partenariat": 1421807618078539886
 }
 
 # Configuration du canal de logs
@@ -98,10 +101,32 @@ TICKET_MANAGER_ROLES = [
     1096054762862026833   # Directeur Général
 ]
 
+# Rôles autorisés pour les tickets partenariat (admin + rôles spécifiques)
+PARTENARIAT_MANAGER_ROLES = [
+    1420379353610457098,
+    1335707332180447443
+]
+
 def has_ticket_permission(user: discord.Member) -> bool:
     """Vérifie si l'utilisateur a les permissions de gestion des tickets"""
     user_roles = [role.id for role in user.roles]
     return any(role_id in user_roles for role_id in TICKET_MANAGER_ROLES)
+
+def has_partenariat_permission(user: discord.Member) -> bool:
+    """Vérifie si l'utilisateur a les permissions pour les tickets partenariat"""
+    # Vérifier si l'utilisateur est admin
+    if user.guild_permissions.administrator:
+        return True
+    
+    # Vérifier si l'utilisateur a un des rôles autorisés
+    user_roles = [role.id for role in user.roles]
+    return any(role_id in user_roles for role_id in PARTENARIAT_MANAGER_ROLES)
+
+def is_partenariat_ticket(channel: discord.TextChannel) -> bool:
+    """Vérifie si le canal est un ticket partenariat"""
+    if channel.category and channel.category.id == TICKET_CATEGORIES.get("partenariat"):
+        return True
+    return False
 
 class TicketView(discord.ui.View):
     """Vue avec les boutons pour créer des tickets"""
@@ -120,6 +145,10 @@ class TicketView(discord.ui.View):
     @discord.ui.button(label="👥 Nous Rejoindre", style=discord.ButtonStyle.secondary, custom_id="ticket_rejoindre")
     async def ticket_rejoindre(self, interaction: discord.Interaction, button: discord.ui.Button):
         await create_ticket(interaction, "nous_rejoindre")
+    
+    @discord.ui.button(label="🤝 Partenariat", style=discord.ButtonStyle.primary, custom_id="ticket_partenariat")
+    async def ticket_partenariat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await create_ticket(interaction, "partenariat")
 
 class TicketControlView(discord.ui.View):
     """Vue pour contrôler les tickets"""
@@ -131,9 +160,17 @@ class TicketControlView(discord.ui.View):
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = get_language(interaction.user)
         
-        if not has_ticket_permission(interaction.user):
-            await interaction.response.send_message(get_message("no_permission", lang), ephemeral=True)
-            return
+        # Vérifier les permissions selon le type de ticket
+        if is_partenariat_ticket(interaction.channel):
+            # Pour les tickets partenariat, vérifier les permissions spécifiques
+            if not has_partenariat_permission(interaction.user):
+                await interaction.response.send_message(get_message("no_permission", lang), ephemeral=True)
+                return
+        else:
+            # Pour les autres tickets, utiliser les permissions normales
+            if not has_ticket_permission(interaction.user):
+                await interaction.response.send_message(get_message("no_permission", lang), ephemeral=True)
+                return
         
         await interaction.response.send_message(get_message("closing_ticket", lang), ephemeral=True)
         
@@ -211,10 +248,24 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str):
         }
         
         # Ajouter les permissions pour les rôles de gestion
-        for role_id in TICKET_MANAGER_ROLES:
-            role = interaction.guild.get_role(role_id)
-            if role:
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        # Pour les tickets partenariat, seuls les admins et les rôles spécifiés ont accès
+        if ticket_type == "partenariat":
+            # Ajouter les permissions pour les rôles spécifiques
+            for role_id in PARTENARIAT_MANAGER_ROLES:
+                role = interaction.guild.get_role(role_id)
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+            
+            # Ajouter les permissions pour tous les rôles admin (vérification de la permission administrator)
+            for role in interaction.guild.roles:
+                if role.permissions.administrator:
+                    overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        else:
+            # Pour les autres types de tickets, utiliser les rôles de gestion normaux
+            for role_id in TICKET_MANAGER_ROLES:
+                role = interaction.guild.get_role(role_id)
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
         
         ticket_channel = await interaction.guild.create_text_channel(
             f"ticket-{interaction.user.name.lower()}",
@@ -226,13 +277,15 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str):
         ticket_type_emoji = {
             "commande": "🛒",
             "service_client": "🎧", 
-            "nous_rejoindre": "👥"
+            "nous_rejoindre": "👥",
+            "partenariat": "🤝"
         }
         
         ticket_type_name = {
             "commande": "Commande",
             "service_client": "Service Client",
-            "nous_rejoindre": "Nous Rejoindre"
+            "nous_rejoindre": "Nous Rejoindre",
+            "partenariat": "Partenariat"
         }
         
         embed = discord.Embed(
@@ -313,6 +366,11 @@ async def create_ticket_panel(bot, guild):
         embed.add_field(
             name="👥 Nous Rejoindre",
             value=get_message("rejoindre_desc", "fr"),
+            inline=True
+        )
+        embed.add_field(
+            name="🤝 Partenariat",
+            value=get_message("partenariat_desc", "fr"),
             inline=True
         )
         embed.add_field(
