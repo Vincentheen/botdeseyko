@@ -17,6 +17,13 @@ SEYKOOTEAM_LOG_CHANNEL_ID = 1435652718462242877  # Channel de logs
 DEFAULT_ROLE_ID = 1400606089082437853  # Rôle par défaut à conserver
 DEFAULT_ROLE_2_ID = 1005763703335034975  # Deuxième rôle par défaut à conserver
 
+# Rôles autorisés pour la déconnexion forcée
+FORCE_DISCONNECT_ROLES = [
+    1400608804919316620,
+    1113214565619085424,
+    1096054762862026833
+]
+
 # Configuration des membres de l'équipe
 # Format: {"nom": {"roles": [liste_des_ids], "password": "mot_de_passe", "label": "Label affiché (optionnel)"}}
 TEAM_MEMBERS = {
@@ -44,7 +51,7 @@ TEAM_MEMBERS = {
             1005763703335034975
         ],
         "password": "margaux2024",  # À changer selon vos besoins
-        "label": "M𝔞𝔯𝔤𝔞𝔲𝔵 8"  # Label avec caractères spéciaux
+        "label": "M𝔞𝔯𝔤𝔞𝔲𝔵"  # Label avec caractères spéciaux
     },
     # Les autres membres seront ajoutés plus tard
 }
@@ -52,6 +59,18 @@ TEAM_MEMBERS = {
 def is_seykooteam_account(user: discord.Member) -> bool:
     """Vérifie si l'utilisateur est le compte Seykooteam"""
     return user.id == SEYKOOTEAM_ACCOUNT_ID
+
+def has_force_disconnect_permission(user: discord.Member) -> bool:
+    """Vérifie si l'utilisateur a la permission de déconnexion forcée"""
+    user_roles = [role.id for role in user.roles]
+    return any(role_id in user_roles for role_id in FORCE_DISCONNECT_ROLES)
+
+def is_already_connected(guild, seykooteam_member: discord.Member) -> bool:
+    """Vérifie si le compte Seykooteam est déjà connecté (nom différent de 'Seykooteam')"""
+    if not seykooteam_member:
+        return False
+    current_nick = seykooteam_member.display_name or seykooteam_member.name
+    return current_nick.lower() != "seykooteam"
 
 async def log_seykooteam_action(guild, action: str, member_name: str = None, details: str = None, **kwargs):
     """Log une action du compte Seykooteam"""
@@ -145,6 +164,16 @@ class PasswordModal(discord.ui.Modal, title="Authentification"):
         if not seykooteam_member:
             await interaction.response.send_message(
                 "❌ Compte Seykooteam introuvable sur le serveur.",
+                ephemeral=True
+            )
+            return
+        
+        # Vérifier si quelqu'un est déjà connecté
+        if is_already_connected(interaction.guild, seykooteam_member):
+            current_nick = seykooteam_member.display_name or seykooteam_member.name
+            await interaction.response.send_message(
+                f"❌ Le compte Seykooteam est déjà connecté sous le nom **{current_nick}**.\n"
+                "Veuillez vous déconnecter avant de vous reconnecter.",
                 ephemeral=True
             )
             return
@@ -328,6 +357,105 @@ class DisconnectButton(discord.ui.Button):
                 ephemeral=True
             )
 
+class ForceDisconnectButton(discord.ui.Button):
+    """Bouton de déconnexion forcée (réservé aux admins)"""
+    
+    def __init__(self, row: int):
+        super().__init__(
+            label="🔴 DecoForce",
+            style=discord.ButtonStyle.danger,
+            custom_id="seykooteam_force_disconnect",
+            row=row
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        # Vérifier les permissions
+        if not has_force_disconnect_permission(interaction.user):
+            await interaction.response.send_message(
+                "❌ Vous n'avez pas les permissions pour utiliser cette commande.",
+                ephemeral=True
+            )
+            return
+        
+        # Récupérer le membre Seykooteam
+        seykooteam_member = interaction.guild.get_member(SEYKOOTEAM_ACCOUNT_ID)
+        if not seykooteam_member:
+            await interaction.response.send_message(
+                "❌ Compte Seykooteam introuvable sur le serveur.",
+                ephemeral=True
+            )
+            return
+        
+        try:
+            # Récupérer les rôles par défaut
+            default_role = interaction.guild.get_role(DEFAULT_ROLE_ID)
+            default_role_2 = interaction.guild.get_role(DEFAULT_ROLE_2_ID)
+            
+            if not default_role:
+                await interaction.response.send_message(
+                    "❌ Rôle par défaut introuvable.",
+                    ephemeral=True
+                )
+                return
+            
+            if not default_role_2:
+                await interaction.response.send_message(
+                    "❌ Deuxième rôle par défaut introuvable.",
+                    ephemeral=True
+                )
+                return
+            
+            # Récupérer le nom actuel avant déconnexion (pour le log)
+            old_nick = seykooteam_member.display_name or seykooteam_member.name
+            
+            # Retirer tous les rôles sauf les rôles par défaut
+            await seykooteam_member.edit(roles=[default_role, default_role_2])
+            
+            # Remettre le nom d'origine "Seykooteam"
+            try:
+                await seykooteam_member.edit(nick="Seykooteam")
+            except Exception as e:
+                print(f"⚠️ Erreur lors du renommage: {e}")
+            
+            # Logger l'action avec mention de la déconnexion forcée
+            await log_seykooteam_action(
+                interaction.guild,
+                "déconnexion",
+                details=f"Déconnexion FORCÉE du compte Seykooteam par {interaction.user.mention}. "
+                       f"Ancien nom: {old_nick}",
+                roles=[default_role, default_role_2],
+                nickname="Seykooteam"
+            )
+            
+            # Créer l'embed de confirmation
+            embed = discord.Embed(
+                title="✅ Déconnexion forcée réussie",
+                description=f"Le compte Seykooteam a été déconnecté de force par {interaction.user.mention}.\n"
+                           f"Ancien nom: **{old_nick}**\n"
+                           "Tous les rôles ont été retirés sauf les rôles par défaut.",
+                color=0xff0000,
+                timestamp=datetime.now()
+            )
+            embed.add_field(
+                name="👮 Modérateur",
+                value=interaction.user.mention,
+                inline=True
+            )
+            embed.add_field(
+                name="📋 Statut",
+                value="Déconnecté (forcé)",
+                inline=True
+            )
+            embed.set_footer(text="Seykooteam - Système de contrôle")
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Erreur lors de la déconnexion forcée: {e}",
+                ephemeral=True
+            )
+
 class SeykooteamView(discord.ui.View):
     """Vue avec les boutons pour contrôler le compte Seykooteam"""
     
@@ -346,9 +474,27 @@ class SeykooteamView(discord.ui.View):
         disconnect_row = row + 1 if row < 4 else 4
         disconnect_button = DisconnectButton(disconnect_row)
         self.add_item(disconnect_button)
+        
+        # Ajouter le bouton de déconnexion forcée sur la même rangée
+        force_disconnect_button = ForceDisconnectButton(disconnect_row)
+        self.add_item(force_disconnect_button)
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Vérifie que seul le compte Seykooteam peut interagir"""
+        """Vérifie les permissions selon le bouton utilisé"""
+        # Vérifier quel bouton a été cliqué
+        custom_id = interaction.data.get("custom_id", "")
+        
+        # Pour le bouton DecoForce, autoriser si l'utilisateur a les permissions
+        if custom_id == "seykooteam_force_disconnect":
+            if has_force_disconnect_permission(interaction.user):
+                return True
+            await interaction.response.send_message(
+                "❌ Vous n'avez pas les permissions pour utiliser cette commande.",
+                ephemeral=True
+            )
+            return False
+        
+        # Pour tous les autres boutons, seul le compte Seykooteam peut interagir
         if not is_seykooteam_account(interaction.user):
             await interaction.response.send_message(
                 "❌ Seul le compte Seykooteam peut utiliser ce système.",
@@ -390,7 +536,8 @@ async def create_seykooteam_panel(bot, guild):
         )
         embed.add_field(
             name="🔴 Déconnexion",
-            value="Utilisez le bouton rouge pour retirer tous les rôles et revenir aux rôles par défaut (sans mot de passe).",
+            value="**Déconnecter** : Utilisez le bouton rouge pour retirer tous les rôles et revenir aux rôles par défaut (sans mot de passe).\n"
+                  "**DecoForce** : Bouton de déconnexion forcée réservé aux administrateurs (en cas d'oubli de déconnexion).",
             inline=False
         )
         embed.add_field(
