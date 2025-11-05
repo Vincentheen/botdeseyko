@@ -14,6 +14,7 @@ from datetime import datetime
 SEYKOOTEAM_CHANNEL_ID = 1435643776419889183
 SEYKOOTEAM_ACCOUNT_ID = 1435599551972249670
 DEFAULT_ROLE_ID = 1400606089082437853  # Rôle par défaut à conserver
+DEFAULT_ROLE_2_ID = 1005763703335034975  # Deuxième rôle par défaut à conserver
 
 # Configuration des membres de l'équipe
 # Format: {"nom": {"roles": [liste_des_ids], "password": "mot_de_passe", "label": "Label affiché (optionnel)"}}
@@ -199,8 +200,10 @@ class DisconnectButton(discord.ui.Button):
             return
         
         try:
-            # Récupérer le rôle par défaut
+            # Récupérer les rôles par défaut
             default_role = interaction.guild.get_role(DEFAULT_ROLE_ID)
+            default_role_2 = interaction.guild.get_role(DEFAULT_ROLE_2_ID)
+            
             if not default_role:
                 await interaction.response.send_message(
                     "❌ Rôle par défaut introuvable.",
@@ -208,13 +211,20 @@ class DisconnectButton(discord.ui.Button):
                 )
                 return
             
-            # Retirer tous les rôles sauf le rôle par défaut
-            await seykooteam_member.edit(roles=[default_role])
+            if not default_role_2:
+                await interaction.response.send_message(
+                    "❌ Deuxième rôle par défaut introuvable.",
+                    ephemeral=True
+                )
+                return
+            
+            # Retirer tous les rôles sauf les rôles par défaut
+            await seykooteam_member.edit(roles=[default_role, default_role_2])
             
             # Créer l'embed de confirmation
             embed = discord.Embed(
                 title="✅ Déconnexion réussie",
-                description="Le compte Seykooteam a été déconnecté. Tous les rôles ont été retirés sauf le rôle par défaut.",
+                description="Le compte Seykooteam a été déconnecté. Tous les rôles ont été retirés sauf les rôles par défaut.",
                 color=0xff0000,
                 timestamp=datetime.now()
             )
@@ -295,7 +305,7 @@ async def create_seykooteam_panel(bot, guild):
         )
         embed.add_field(
             name="🔴 Déconnexion",
-            value="Utilisez le bouton rouge pour retirer tous les rôles et revenir au rôle par défaut (sans mot de passe).",
+            value="Utilisez le bouton rouge pour retirer tous les rôles et revenir aux rôles par défaut (sans mot de passe).",
             inline=False
         )
         embed.add_field(
