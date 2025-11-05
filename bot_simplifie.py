@@ -22,7 +22,7 @@ from reglement import setup_reglement_system, create_reglement_panel
 from verification import setup_verification_system, create_verification_panel
 from planning import setup_planning_system, create_planning_panel
 from logs import setup_logs_system
-from seykooteam import setup_seykooteam_system, create_seykooteam_panel
+from seykooteam import setup_seykooteam_system, create_seykooteam_panel, log_seykooteam_message
 
 # Configuration Discord
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN', 'VOTRE_TOKEN_BOT')
@@ -232,6 +232,19 @@ async def on_member_update(before, after):
         
         for role_id in removed_roles:
             print(f"➖ Rôle retiré: {after.name} -> {role_id}")
+
+@bot.event
+async def on_message(message):
+    """Événement quand un message est envoyé"""
+    # Logger les messages du compte Seykooteam (mais pas les messages du bot lui-même)
+    if message.guild and str(message.guild.id) == DISCORD_GUILD_ID and message.author.id != bot.user.id:
+        try:
+            await log_seykooteam_message(message)
+        except Exception as e:
+            print(f"❌ Erreur log message Seykooteam: {e}")
+    
+    # Ne pas oublier de traiter les commandes
+    await bot.process_commands(message)
 
 # Commandes essentielles seulement
 @bot.command(name='info')

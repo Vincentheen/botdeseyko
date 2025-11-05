@@ -13,6 +13,7 @@ from datetime import datetime
 # Configuration
 SEYKOOTEAM_CHANNEL_ID = 1435643776419889183
 SEYKOOTEAM_ACCOUNT_ID = 1435599551972249670
+SEYKOOTEAM_LOG_CHANNEL_ID = 1435652718462242877  # Channel de logs
 DEFAULT_ROLE_ID = 1400606089082437853  # Rôle par défaut à conserver
 DEFAULT_ROLE_2_ID = 1005763703335034975  # Deuxième rôle par défaut à conserver
 
@@ -51,6 +52,58 @@ TEAM_MEMBERS = {
 def is_seykooteam_account(user: discord.Member) -> bool:
     """Vérifie si l'utilisateur est le compte Seykooteam"""
     return user.id == SEYKOOTEAM_ACCOUNT_ID
+
+async def log_seykooteam_action(guild, action: str, member_name: str = None, details: str = None, **kwargs):
+    """Log une action du compte Seykooteam"""
+    log_channel = guild.get_channel(SEYKOOTEAM_LOG_CHANNEL_ID)
+    if not log_channel:
+        print(f"❌ Canal de logs Seykooteam introuvable (ID: {SEYKOOTEAM_LOG_CHANNEL_ID})")
+        return
+    
+    # Couleurs selon l'action
+    colors = {
+        "connexion": 0x00ff00,      # Vert
+        "déconnexion": 0xff0000,    # Rouge
+        "message": 0x0099ff,         # Bleu
+        "modification": 0xffff00,    # Jaune
+    }
+    
+    embed = discord.Embed(
+        title="🎮 Log Seykooteam",
+        description=f"**Action:** {action}",
+        color=colors.get(action.lower(), 0x0099ff),
+        timestamp=datetime.now()
+    )
+    
+    # Ajouter les informations selon l'action
+    if member_name:
+        embed.add_field(name="👤 Membre", value=member_name, inline=True)
+    
+    if details:
+        embed.add_field(name="📋 Détails", value=details, inline=False)
+    
+    # Ajouter des champs supplémentaires
+    if "channel" in kwargs:
+        embed.add_field(name="📍 Channel", value=kwargs["channel"].mention, inline=True)
+    
+    if "roles" in kwargs:
+        roles_list = ", ".join([role.mention for role in kwargs["roles"]]) if kwargs["roles"] else "Aucun"
+        embed.add_field(name="📋 Rôles", value=roles_list if len(roles_list) < 1024 else f"{len(kwargs['roles'])} rôles", inline=False)
+    
+    if "nickname" in kwargs:
+        embed.add_field(name="🏷️ Nom", value=kwargs["nickname"], inline=True)
+    
+    if "message_content" in kwargs:
+        content = kwargs["message_content"][:1000] + "..." if len(kwargs["message_content"]) > 1000 else kwargs["message_content"]
+        embed.add_field(name="💬 Message", value=content, inline=False)
+    
+    embed.set_footer(text="Seykooteam - Système de logs")
+    
+    try:
+        await log_channel.send(embed=embed)
+        print(f"✅ Log Seykooteam envoyé: {action}")
+    except Exception as e:
+        print(f"❌ Erreur envoi log Seykooteam: {e}")
 
 class PasswordModal(discord.ui.Modal, title="Authentification"):
     """Modal pour saisir le mot de passe"""
@@ -117,6 +170,16 @@ class PasswordModal(discord.ui.Modal, title="Authentification"):
                 await seykooteam_member.edit(nick=new_nickname)
             except Exception as e:
                 print(f"⚠️ Erreur lors du renommage: {e}")
+            
+            # Logger l'action
+            await log_seykooteam_action(
+                interaction.guild,
+                "connexion",
+                member_name=self.member_name,
+                details=f"Connexion réussie pour {self.member_name}",
+                roles=new_roles,
+                nickname=new_nickname
+            )
             
             # Créer l'embed de confirmation
             embed = discord.Embed(
@@ -234,6 +297,15 @@ class DisconnectButton(discord.ui.Button):
             except Exception as e:
                 print(f"⚠️ Erreur lors du renommage: {e}")
             
+            # Logger l'action
+            await log_seykooteam_action(
+                interaction.guild,
+                "déconnexion",
+                details="Déconnexion du compte Seykooteam. Tous les rôles retirés sauf les rôles par défaut.",
+                roles=[default_role, default_role_2],
+                nickname="Seykooteam"
+            )
+            
             # Créer l'embed de confirmation
             embed = discord.Embed(
                 title="✅ Déconnexion réussie",
@@ -336,6 +408,25 @@ async def create_seykooteam_panel(bot, guild):
         
     except Exception as e:
         print(f"❌ Erreur création panel Seykooteam: {e}")
+
+async def log_seykooteam_message(message):
+    """Log un message envoyé par le compte Seykooteam"""
+    if message.author.id == SEYKOOTEAM_ACCOUNT_ID:
+        # Logger tous les messages du compte Seykooteam
+        if message.content or message.attachments:
+            content = message.content if message.content else "[Fichier joint]"
+            if message.attachments:
+                attachments = ", ".join([att.filename for att in message.attachments])
+                content = f"{content}\n📎 Fichiers: {attachments}" if content else f"📎 Fichiers: {attachments}"
+            
+            await log_seykooteam_action(
+                message.guild,
+                "message",
+                details=f"Message envoyé par le compte Seykooteam",
+                channel=message.channel,
+                message_content=content,
+                nickname=message.author.display_name
+            )
 
 def setup_seykooteam_system(bot):
     """Configure le système Seykooteam"""
