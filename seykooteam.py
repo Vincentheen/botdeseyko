@@ -111,6 +111,13 @@ class PasswordModal(discord.ui.Modal, title="Authentification"):
             # Appliquer les rôles
             await seykooteam_member.edit(roles=new_roles)
             
+            # Renommer le compte avec le nom du membre
+            new_nickname = f"seykooteam-{self.member_name}"
+            try:
+                await seykooteam_member.edit(nick=new_nickname)
+            except Exception as e:
+                print(f"⚠️ Erreur lors du renommage: {e}")
+            
             # Créer l'embed de confirmation
             embed = discord.Embed(
                 title="✅ Connexion réussie",
@@ -220,6 +227,12 @@ class DisconnectButton(discord.ui.Button):
             
             # Retirer tous les rôles sauf les rôles par défaut
             await seykooteam_member.edit(roles=[default_role, default_role_2])
+            
+            # Remettre le nom d'origine "Seykooteam"
+            try:
+                await seykooteam_member.edit(nick="Seykooteam")
+            except Exception as e:
+                print(f"⚠️ Erreur lors du renommage: {e}")
             
             # Créer l'embed de confirmation
             embed = discord.Embed(
