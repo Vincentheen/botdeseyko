@@ -22,6 +22,7 @@ from reglement import setup_reglement_system, create_reglement_panel
 from verification import setup_verification_system, create_verification_panel
 from planning import setup_planning_system, create_planning_panel
 from logs import setup_logs_system
+from seykooteam import setup_seykooteam_system, create_seykooteam_panel
 
 # Configuration Discord
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN', 'VOTRE_TOKEN_BOT')
@@ -51,6 +52,7 @@ async def on_ready():
     setup_verification_system(bot)
     setup_planning_system(bot)
     setup_logs_system(bot)
+    setup_seykooteam_system(bot)
     
     print("✅ Tous les systèmes configurés")
     
@@ -118,6 +120,18 @@ async def send_automatic_messages():
                 print(f"❌ Erreur création panel planning: {e}")
         else:
             print("❌ Canal de planning introuvable")
+        
+        # Panel Seykooteam
+        print("🎮 Création du panel Seykooteam...")
+        seykooteam_channel = guild.get_channel(1435643776419889183)
+        if seykooteam_channel:
+            try:
+                await create_seykooteam_panel(bot, guild)
+                print(f"✅ Panel Seykooteam créé dans #{seykooteam_channel.name}")
+            except Exception as e:
+                print(f"❌ Erreur création panel Seykooteam: {e}")
+        else:
+            print("❌ Canal Seykooteam introuvable")
         
         print("🎉 Création automatique de tous les panels terminée!")
         print("✅ Tous les systèmes sont maintenant opérationnels!")
