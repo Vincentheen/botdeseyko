@@ -24,8 +24,12 @@ FORCE_DISCONNECT_ROLES = [
     1096054762862026833
 ]
 
+# Configuration Admin
+ADMIN_ROLE_ID = 1288085709990658088  # Rôle à donner au compte Seykooteam pour l'admin
+ADMIN_PASSWORD = "admin2024"  # Mot de passe admin (à changer)
+
 # Configuration des membres de l'équipe
-# Format: {"nom": {"roles": [liste_des_ids], "password": "mot_de_passe", "label": "Label affiché (optionnel)"}}
+# Format: {"nom": {"roles": [liste_des_ids], "user_id": id_discord, "label": "Label affiché (optionnel)"}}
 TEAM_MEMBERS = {
     "josh": {
         "roles": [
@@ -39,7 +43,7 @@ TEAM_MEMBERS = {
             1400606089082437853,
             1081612511561908256
         ],
-        "password": "josh2024",  # À changer selon vos besoins
+        "user_id": 1155480925363245067,  # ID Discord de Josh
         "label": "Josh"  # Label affiché sur le bouton (optionnel, utilise la clé si non défini)
     },
     "margaux8": {
@@ -50,7 +54,7 @@ TEAM_MEMBERS = {
             1400606089082437853,
             1005763703335034975
         ],
-        "password": "margaux2024",  # À changer selon vos besoins
+        "user_id": 412287735559356419,  # ID Discord de Margaux
         "label": "M𝔞𝔯𝔤𝔞𝔲𝔵"  # Label avec caractères spéciaux
     },
     # Les autres membres seront ajoutés plus tard
@@ -124,123 +128,86 @@ async def log_seykooteam_action(guild, action: str, member_name: str = None, det
     except Exception as e:
         print(f"❌ Erreur envoi log Seykooteam: {e}")
 
-class PasswordModal(discord.ui.Modal, title="Authentification"):
-    """Modal pour saisir le mot de passe"""
-    
-    def __init__(self, member_name: str, member_config: dict):
-        super().__init__()
-        self.member_name = member_name
-        self.member_config = member_config
-        self.password_input = discord.ui.TextInput(
-            label="Mot de passe",
-            placeholder="Entrez votre mot de passe...",
-            min_length=3,
-            max_length=50,
-            required=True,
-            style=discord.TextStyle.short
+async def connect_member(interaction: discord.Interaction, member_name: str, member_config: dict):
+    """Connecte un membre au compte Seykooteam"""
+    # Récupérer le membre Seykooteam
+    seykooteam_member = interaction.guild.get_member(SEYKOOTEAM_ACCOUNT_ID)
+    if not seykooteam_member:
+        await interaction.response.send_message(
+            "❌ Compte Seykooteam introuvable sur le serveur.",
+            ephemeral=True
         )
-        self.add_item(self.password_input)
+        return
     
-    async def on_submit(self, interaction: discord.Interaction):
-        """Vérifie le mot de passe et applique les rôles"""
-        # Vérifier que c'est bien le compte Seykooteam qui interagit
-        if not is_seykooteam_account(interaction.user):
-            await interaction.response.send_message(
-                "❌ Seul le compte Seykooteam peut utiliser ce système.",
-                ephemeral=True
-            )
-            return
+    # Vérifier si quelqu'un est déjà connecté
+    if is_already_connected(interaction.guild, seykooteam_member):
+        current_nick = seykooteam_member.display_name or seykooteam_member.name
+        await interaction.response.send_message(
+            f"❌ Le compte Seykooteam est déjà connecté sous le nom **{current_nick}**.\n"
+            "Veuillez vous déconnecter avant de vous reconnecter.",
+            ephemeral=True
+        )
+        return
+    
+    try:
+        # Récupérer les nouveaux rôles à ajouter
+        new_roles = []
+        for role_id in member_config["roles"]:
+            role = interaction.guild.get_role(role_id)
+            if role:
+                new_roles.append(role)
         
-        # Vérifier le mot de passe
-        if self.password_input.value != self.member_config["password"]:
-            await interaction.response.send_message(
-                "❌ Mot de passe incorrect.",
-                ephemeral=True
-            )
-            return
+        # Appliquer les rôles
+        await seykooteam_member.edit(roles=new_roles)
         
-        # Récupérer le membre Seykooteam
-        seykooteam_member = interaction.guild.get_member(SEYKOOTEAM_ACCOUNT_ID)
-        if not seykooteam_member:
-            await interaction.response.send_message(
-                "❌ Compte Seykooteam introuvable sur le serveur.",
-                ephemeral=True
-            )
-            return
-        
-        # Vérifier si quelqu'un est déjà connecté
-        if is_already_connected(interaction.guild, seykooteam_member):
-            current_nick = seykooteam_member.display_name or seykooteam_member.name
-            await interaction.response.send_message(
-                f"❌ Le compte Seykooteam est déjà connecté sous le nom **{current_nick}**.\n"
-                "Veuillez vous déconnecter avant de vous reconnecter.",
-                ephemeral=True
-            )
-            return
-        
+        # Renommer le compte avec le nom du membre
+        new_nickname = f"seykooteam-{member_name}"
         try:
-            # Retirer tous les rôles sauf le rôle par défaut
-            default_role = interaction.guild.get_role(DEFAULT_ROLE_ID)
-            roles_to_keep = [default_role] if default_role else []
-            
-            # Récupérer les nouveaux rôles à ajouter
-            new_roles = []
-            for role_id in self.member_config["roles"]:
-                role = interaction.guild.get_role(role_id)
-                if role:
-                    new_roles.append(role)
-            
-            # Appliquer les rôles
-            await seykooteam_member.edit(roles=new_roles)
-            
-            # Renommer le compte avec le nom du membre
-            new_nickname = f"seykooteam-{self.member_name}"
-            try:
-                await seykooteam_member.edit(nick=new_nickname)
-            except Exception as e:
-                print(f"⚠️ Erreur lors du renommage: {e}")
-            
-            # Logger l'action
-            await log_seykooteam_action(
-                interaction.guild,
-                "connexion",
-                member_name=self.member_name,
-                details=f"Connexion réussie pour {self.member_name}",
-                roles=new_roles,
-                nickname=new_nickname
-            )
-            
-            # Créer l'embed de confirmation
-            embed = discord.Embed(
-                title="✅ Connexion réussie",
-                description=f"Le compte Seykooteam a été configuré pour **{self.member_name}**.",
-                color=0x00ff00,
-                timestamp=datetime.now()
-            )
-            embed.add_field(
-                name="👤 Membre",
-                value=self.member_name,
-                inline=True
-            )
-            embed.add_field(
-                name="🔑 Authentification",
-                value="✅ Validé",
-                inline=True
-            )
-            embed.add_field(
-                name="📋 Rôles appliqués",
-                value=f"{len(new_roles)} rôles",
-                inline=False
-            )
-            embed.set_footer(text="Seykooteam - Système de contrôle")
-            
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            
+            await seykooteam_member.edit(nick=new_nickname)
         except Exception as e:
-            await interaction.response.send_message(
-                f"❌ Erreur lors de l'application des rôles: {e}",
-                ephemeral=True
-            )
+            print(f"⚠️ Erreur lors du renommage: {e}")
+        
+        # Logger l'action
+        await log_seykooteam_action(
+            interaction.guild,
+            "connexion",
+            member_name=member_name,
+            details=f"Connexion réussie pour {member_name} par {interaction.user.mention}",
+            roles=new_roles,
+            nickname=new_nickname
+        )
+        
+        # Créer l'embed de confirmation
+        embed = discord.Embed(
+            title="✅ Connexion réussie",
+            description=f"Le compte Seykooteam a été configuré pour **{member_name}**.",
+            color=0x00ff00,
+            timestamp=datetime.now()
+        )
+        embed.add_field(
+            name="👤 Membre",
+            value=member_name,
+            inline=True
+        )
+        embed.add_field(
+            name="👤 Connecté par",
+            value=interaction.user.mention,
+            inline=True
+        )
+        embed.add_field(
+            name="📋 Rôles appliqués",
+            value=f"{len(new_roles)} rôles",
+            inline=False
+        )
+        embed.set_footer(text="Seykooteam - Système de contrôle")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(
+            f"❌ Erreur lors de l'application des rôles: {e}",
+            ephemeral=True
+        )
 
 
 class MemberButton(discord.ui.Button):
@@ -259,15 +226,155 @@ class MemberButton(discord.ui.Button):
         self.member_config = member_config
     
     async def callback(self, interaction: discord.Interaction):
-        if not is_seykooteam_account(interaction.user):
+        # Vérifier que l'utilisateur est autorisé (même ID que configuré)
+        if interaction.user.id != self.member_config.get("user_id"):
             await interaction.response.send_message(
-                "❌ Seul le compte Seykooteam peut utiliser ce système.",
+                f"❌ Vous n'êtes pas autorisé à utiliser ce bouton. Seul le membre **{self.member_name}** peut l'utiliser.",
+                ephemeral=True
+            )
+            return
+        
+        # Connecter le membre
+        await connect_member(interaction, self.member_name, self.member_config)
+
+class AdminPasswordModal(discord.ui.Modal, title="Authentification Admin"):
+    """Modal pour saisir le mot de passe admin"""
+    
+    def __init__(self):
+        super().__init__()
+        self.password_input = discord.ui.TextInput(
+            label="Mot de passe admin",
+            placeholder="Entrez le mot de passe admin...",
+            min_length=3,
+            max_length=50,
+            required=True,
+            style=discord.TextStyle.short
+        )
+        self.add_item(self.password_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        """Vérifie le mot de passe et applique le rôle admin"""
+        # Vérifier les permissions admin
+        if not has_force_disconnect_permission(interaction.user):
+            await interaction.response.send_message(
+                "❌ Vous n'avez pas les permissions pour utiliser cette fonctionnalité.",
+                ephemeral=True
+            )
+            return
+        
+        # Vérifier le mot de passe
+        if self.password_input.value != ADMIN_PASSWORD:
+            await interaction.response.send_message(
+                "❌ Mot de passe incorrect.",
+                ephemeral=True
+            )
+            return
+        
+        # Récupérer le membre Seykooteam
+        seykooteam_member = interaction.guild.get_member(SEYKOOTEAM_ACCOUNT_ID)
+        if not seykooteam_member:
+            await interaction.response.send_message(
+                "❌ Compte Seykooteam introuvable sur le serveur.",
+                ephemeral=True
+            )
+            return
+        
+        # Vérifier si quelqu'un est déjà connecté (mais permettre au mode admin de forcer la connexion)
+        if is_already_connected(interaction.guild, seykooteam_member):
+            current_nick = seykooteam_member.display_name or seykooteam_member.name
+            # Pour l'admin, on peut forcer la connexion même si quelqu'un est connecté
+            # Mais on informe quand même l'utilisateur
+            pass  # On continue quand même pour l'admin
+        
+        try:
+            # Récupérer le rôle admin
+            admin_role = interaction.guild.get_role(ADMIN_ROLE_ID)
+            if not admin_role:
+                await interaction.response.send_message(
+                    "❌ Rôle admin introuvable.",
+                    ephemeral=True
+                )
+                return
+            
+            # Récupérer les rôles par défaut
+            default_role = interaction.guild.get_role(DEFAULT_ROLE_ID)
+            default_role_2 = interaction.guild.get_role(DEFAULT_ROLE_2_ID)
+            
+            # Appliquer les rôles (rôles par défaut + rôle admin)
+            roles_to_apply = [admin_role]
+            if default_role:
+                roles_to_apply.append(default_role)
+            if default_role_2:
+                roles_to_apply.append(default_role_2)
+            
+            await seykooteam_member.edit(roles=roles_to_apply)
+            
+            # Renommer le compte
+            new_nickname = "seykooteam-admin"
+            try:
+                await seykooteam_member.edit(nick=new_nickname)
+            except Exception as e:
+                print(f"⚠️ Erreur lors du renommage: {e}")
+            
+            # Logger l'action
+            await log_seykooteam_action(
+                interaction.guild,
+                "connexion",
+                member_name="Admin",
+                details=f"Connexion admin réussie par {interaction.user.mention}",
+                roles=roles_to_apply,
+                nickname=new_nickname
+            )
+            
+            # Créer l'embed de confirmation
+            embed = discord.Embed(
+                title="✅ Connexion Admin réussie",
+                description=f"Le compte Seykooteam a été configuré en mode **Admin**.",
+                color=0x00ff00,
+                timestamp=datetime.now()
+            )
+            embed.add_field(
+                name="👮 Administrateur",
+                value=interaction.user.mention,
+                inline=True
+            )
+            embed.add_field(
+                name="📋 Rôle appliqué",
+                value=admin_role.mention,
+                inline=True
+            )
+            embed.set_footer(text="Seykooteam - Système de contrôle")
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Erreur lors de l'application du rôle admin: {e}",
+                ephemeral=True
+            )
+
+class AdminButton(discord.ui.Button):
+    """Bouton Admin pour récupérer le bot"""
+    
+    def __init__(self, row: int):
+        super().__init__(
+            label="🔧 Admin",
+            style=discord.ButtonStyle.secondary,
+            custom_id="seykooteam_admin",
+            row=row
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        # Vérifier les permissions admin
+        if not has_force_disconnect_permission(interaction.user):
+            await interaction.response.send_message(
+                "❌ Vous n'avez pas les permissions pour utiliser cette fonctionnalité.",
                 ephemeral=True
             )
             return
         
         # Afficher le modal de mot de passe
-        modal = PasswordModal(self.member_name, self.member_config)
+        modal = AdminPasswordModal()
         await interaction.response.send_modal(modal)
 
 class DisconnectButton(discord.ui.Button):
@@ -470,8 +577,13 @@ class SeykooteamView(discord.ui.View):
             button = MemberButton(member_name, member_config, row)
             self.add_item(button)
         
+        # Ajouter le bouton Admin sur une nouvelle rangée
+        admin_row = row + 1 if row < 4 else 4
+        admin_button = AdminButton(admin_row)
+        self.add_item(admin_button)
+        
         # Ajouter le bouton de déconnexion sur la dernière rangée
-        disconnect_row = row + 1 if row < 4 else 4
+        disconnect_row = admin_row + 1 if admin_row < 4 else 4
         disconnect_button = DisconnectButton(disconnect_row)
         self.add_item(disconnect_button)
         
@@ -494,13 +606,28 @@ class SeykooteamView(discord.ui.View):
             )
             return False
         
-        # Pour tous les autres boutons, seul le compte Seykooteam peut interagir
-        if not is_seykooteam_account(interaction.user):
+        # Pour le bouton Admin, vérifier les permissions admin
+        if custom_id == "seykooteam_admin":
+            if has_force_disconnect_permission(interaction.user):
+                return True
             await interaction.response.send_message(
-                "❌ Seul le compte Seykooteam peut utiliser ce système.",
+                "❌ Vous n'avez pas les permissions pour utiliser cette fonctionnalité.",
                 ephemeral=True
             )
             return False
+        
+        # Pour le bouton Déconnecter, seul le compte Seykooteam peut l'utiliser
+        if custom_id == "seykooteam_disconnect":
+            if not is_seykooteam_account(interaction.user):
+                await interaction.response.send_message(
+                    "❌ Seul le compte Seykooteam peut utiliser ce bouton.",
+                    ephemeral=True
+                )
+                return False
+            return True
+        
+        # Pour les boutons de membres, la vérification se fait dans le callback du bouton
+        # On autorise l'interaction pour que le callback puisse vérifier l'ID
         return True
 
 def create_seykooteam_view() -> SeykooteamView:
@@ -531,12 +658,17 @@ async def create_seykooteam_panel(bot, guild):
         )
         embed.add_field(
             name="📋 Instructions",
-            value="1. Cliquez sur le bouton du membre que vous souhaitez représenter\n2. Entrez le mot de passe correspondant\n3. Le compte Seykooteam recevra automatiquement les rôles appropriés",
+            value="1. Cliquez sur le bouton de votre nom\n2. Le compte Seykooteam recevra automatiquement vos rôles\n3. Seul le membre concerné peut utiliser son bouton",
+            inline=False
+        )
+        embed.add_field(
+            name="🔧 Admin",
+            value="Bouton réservé aux administrateurs pour récupérer le bot. Nécessite un mot de passe.",
             inline=False
         )
         embed.add_field(
             name="🔴 Déconnexion",
-            value="**Déconnecter** : Utilisez le bouton rouge pour retirer tous les rôles et revenir aux rôles par défaut (sans mot de passe).\n"
+            value="**Déconnecter** : Utilisez le bouton rouge pour retirer tous les rôles et revenir aux rôles par défaut.\n"
                   "**DecoForce** : Bouton de déconnexion forcée réservé aux administrateurs (en cas d'oubli de déconnexion).",
             inline=False
         )
