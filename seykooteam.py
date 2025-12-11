@@ -29,7 +29,7 @@ ADMIN_ROLE_ID = 1288085709990658088  # Rôle à donner au compte Seykooteam pour
 ADMIN_PASSWORD = "admin2024"  # Mot de passe admin (à changer)
 
 # Configuration des membres de l'équipe
-# Format: {"nom": {"roles": [liste_des_ids], "user_id": id_discord, "label": "Label affiché (optionnel)"}}
+# Format: {"nom": {"roles": [liste_des_ids], "password": "mot_de_passe", "label": "Label affiché (optionnel)"}}
 TEAM_MEMBERS = {
     "josh": {
         "roles": [
@@ -43,7 +43,7 @@ TEAM_MEMBERS = {
             1400606089082437853,
             1081612511561908256
         ],
-        "user_id": 1155480925363245067,  # ID Discord de Josh
+        "password": "josh2025",
         "label": "Josh"  # Label affiché sur le bouton (optionnel, utilise la clé si non défini)
     },
     "margaux8": {
@@ -54,7 +54,7 @@ TEAM_MEMBERS = {
             1400606089082437853,
             1005763703335034975
         ],
-        "user_id": 412287735559356419,  # ID Discord de Margaux
+        "password": "margaux2025",
         "label": "M𝔞𝔯𝔤𝔞𝔲𝔵"  # Label avec caractères spéciaux
     },
     # Les autres membres seront ajoutés plus tard
@@ -172,7 +172,7 @@ async def connect_member(interaction: discord.Interaction, member_name: str, mem
             interaction.guild,
             "connexion",
             member_name=member_name,
-            details=f"Connexion réussie pour {member_name} par {interaction.user.mention}",
+            details=f"Connexion réussie pour {member_name}",
             roles=new_roles,
             nickname=new_nickname
         )
@@ -187,11 +187,6 @@ async def connect_member(interaction: discord.Interaction, member_name: str, mem
         embed.add_field(
             name="👤 Membre",
             value=member_name,
-            inline=True
-        )
-        embed.add_field(
-            name="👤 Connecté par",
-            value=interaction.user.mention,
             inline=True
         )
         embed.add_field(
@@ -210,6 +205,49 @@ async def connect_member(interaction: discord.Interaction, member_name: str, mem
         )
 
 
+class MemberPasswordModal(discord.ui.Modal, title="Authentification"):
+    """Modal pour saisir le mot de passe d'un membre"""
+    
+    def __init__(self, member_name: str, member_config: dict):
+        super().__init__()
+        self.member_name = member_name
+        self.member_config = member_config
+        # Utiliser le label personnalisé si disponible
+        label = member_config.get("label", member_name.capitalize())
+        self.title = f"Authentification - {label}"
+        
+        self.password_input = discord.ui.TextInput(
+            label="Mot de passe",
+            placeholder=f"Entrez votre mot de passe...",
+            min_length=3,
+            max_length=50,
+            required=True,
+            style=discord.TextStyle.short
+        )
+        self.add_item(self.password_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        """Vérifie le mot de passe et connecte le membre"""
+        # Vérifier que seul le compte Seykooteam peut utiliser ce système
+        if not is_seykooteam_account(interaction.user):
+            await interaction.response.send_message(
+                "❌ Seul le compte Seykooteam peut utiliser ce système.",
+                ephemeral=True
+            )
+            return
+        
+        # Vérifier le mot de passe
+        correct_password = self.member_config.get("password", "")
+        if self.password_input.value != correct_password:
+            await interaction.response.send_message(
+                "❌ Mot de passe incorrect.",
+                ephemeral=True
+            )
+            return
+        
+        # Connecter le membre
+        await connect_member(interaction, self.member_name, self.member_config)
+
 class MemberButton(discord.ui.Button):
     """Bouton personnalisé pour un membre"""
     
@@ -226,16 +264,17 @@ class MemberButton(discord.ui.Button):
         self.member_config = member_config
     
     async def callback(self, interaction: discord.Interaction):
-        # Vérifier que l'utilisateur est autorisé (même ID que configuré)
-        if interaction.user.id != self.member_config.get("user_id"):
+        # Vérifier que seul le compte Seykooteam peut utiliser ce système
+        if not is_seykooteam_account(interaction.user):
             await interaction.response.send_message(
-                f"❌ Vous n'êtes pas autorisé à utiliser ce bouton. Seul le membre **{self.member_name}** peut l'utiliser.",
+                "❌ Seul le compte Seykooteam peut utiliser ce système.",
                 ephemeral=True
             )
             return
         
-        # Connecter le membre
-        await connect_member(interaction, self.member_name, self.member_config)
+        # Afficher le modal de mot de passe
+        modal = MemberPasswordModal(self.member_name, self.member_config)
+        await interaction.response.send_modal(modal)
 
 class AdminPasswordModal(discord.ui.Modal, title="Authentification Admin"):
     """Modal pour saisir le mot de passe admin"""
@@ -254,10 +293,10 @@ class AdminPasswordModal(discord.ui.Modal, title="Authentification Admin"):
     
     async def on_submit(self, interaction: discord.Interaction):
         """Vérifie le mot de passe et applique le rôle admin"""
-        # Vérifier les permissions admin
-        if not has_force_disconnect_permission(interaction.user):
+        # Vérifier que seul le compte Seykooteam peut utiliser ce système
+        if not is_seykooteam_account(interaction.user):
             await interaction.response.send_message(
-                "❌ Vous n'avez pas les permissions pour utiliser cette fonctionnalité.",
+                "❌ Seul le compte Seykooteam peut utiliser ce système.",
                 ephemeral=True
             )
             return
@@ -321,7 +360,7 @@ class AdminPasswordModal(discord.ui.Modal, title="Authentification Admin"):
                 interaction.guild,
                 "connexion",
                 member_name="Admin",
-                details=f"Connexion admin réussie par {interaction.user.mention}",
+                details="Connexion admin réussie",
                 roles=roles_to_apply,
                 nickname=new_nickname
             )
@@ -332,11 +371,6 @@ class AdminPasswordModal(discord.ui.Modal, title="Authentification Admin"):
                 description=f"Le compte Seykooteam a été configuré en mode **Admin**.",
                 color=0x00ff00,
                 timestamp=datetime.now()
-            )
-            embed.add_field(
-                name="👮 Administrateur",
-                value=interaction.user.mention,
-                inline=True
             )
             embed.add_field(
                 name="📋 Rôle appliqué",
@@ -365,10 +399,10 @@ class AdminButton(discord.ui.Button):
         )
     
     async def callback(self, interaction: discord.Interaction):
-        # Vérifier les permissions admin
-        if not has_force_disconnect_permission(interaction.user):
+        # Vérifier que seul le compte Seykooteam peut utiliser ce système
+        if not is_seykooteam_account(interaction.user):
             await interaction.response.send_message(
-                "❌ Vous n'avez pas les permissions pour utiliser cette fonctionnalité.",
+                "❌ Seul le compte Seykooteam peut utiliser ce système.",
                 ephemeral=True
             )
             return
@@ -465,7 +499,7 @@ class DisconnectButton(discord.ui.Button):
             )
 
 class ForceDisconnectButton(discord.ui.Button):
-    """Bouton de déconnexion forcée (réservé aux admins)"""
+    """Bouton de déconnexion forcée"""
     
     def __init__(self, row: int):
         super().__init__(
@@ -476,10 +510,10 @@ class ForceDisconnectButton(discord.ui.Button):
         )
     
     async def callback(self, interaction: discord.Interaction):
-        # Vérifier les permissions
-        if not has_force_disconnect_permission(interaction.user):
+        # Vérifier que seul le compte Seykooteam peut utiliser ce système
+        if not is_seykooteam_account(interaction.user):
             await interaction.response.send_message(
-                "❌ Vous n'avez pas les permissions pour utiliser cette commande.",
+                "❌ Seul le compte Seykooteam peut utiliser ce système.",
                 ephemeral=True
             )
             return
@@ -528,8 +562,7 @@ class ForceDisconnectButton(discord.ui.Button):
             await log_seykooteam_action(
                 interaction.guild,
                 "déconnexion",
-                details=f"Déconnexion FORCÉE du compte Seykooteam par {interaction.user.mention}. "
-                       f"Ancien nom: {old_nick}",
+                details=f"Déconnexion FORCÉE du compte Seykooteam. Ancien nom: {old_nick}",
                 roles=[default_role, default_role_2],
                 nickname="Seykooteam"
             )
@@ -537,16 +570,11 @@ class ForceDisconnectButton(discord.ui.Button):
             # Créer l'embed de confirmation
             embed = discord.Embed(
                 title="✅ Déconnexion forcée réussie",
-                description=f"Le compte Seykooteam a été déconnecté de force par {interaction.user.mention}.\n"
+                description=f"Le compte Seykooteam a été déconnecté de force.\n"
                            f"Ancien nom: **{old_nick}**\n"
                            "Tous les rôles ont été retirés sauf les rôles par défaut.",
                 color=0xff0000,
                 timestamp=datetime.now()
-            )
-            embed.add_field(
-                name="👮 Modérateur",
-                value=interaction.user.mention,
-                inline=True
             )
             embed.add_field(
                 name="📋 Statut",
@@ -592,42 +620,14 @@ class SeykooteamView(discord.ui.View):
         self.add_item(force_disconnect_button)
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Vérifie les permissions selon le bouton utilisé"""
-        # Vérifier quel bouton a été cliqué
-        custom_id = interaction.data.get("custom_id", "")
-        
-        # Pour le bouton DecoForce, autoriser si l'utilisateur a les permissions
-        if custom_id == "seykooteam_force_disconnect":
-            if has_force_disconnect_permission(interaction.user):
-                return True
+        """Vérifie que seul le compte Seykooteam peut utiliser les boutons"""
+        # Vérifier que seul le compte Seykooteam peut utiliser ce système
+        if not is_seykooteam_account(interaction.user):
             await interaction.response.send_message(
-                "❌ Vous n'avez pas les permissions pour utiliser cette commande.",
+                "❌ Seul le compte Seykooteam peut utiliser ce système.",
                 ephemeral=True
             )
             return False
-        
-        # Pour le bouton Admin, vérifier les permissions admin
-        if custom_id == "seykooteam_admin":
-            if has_force_disconnect_permission(interaction.user):
-                return True
-            await interaction.response.send_message(
-                "❌ Vous n'avez pas les permissions pour utiliser cette fonctionnalité.",
-                ephemeral=True
-            )
-            return False
-        
-        # Pour le bouton Déconnecter, seul le compte Seykooteam peut l'utiliser
-        if custom_id == "seykooteam_disconnect":
-            if not is_seykooteam_account(interaction.user):
-                await interaction.response.send_message(
-                    "❌ Seul le compte Seykooteam peut utiliser ce bouton.",
-                    ephemeral=True
-                )
-                return False
-            return True
-        
-        # Pour les boutons de membres, la vérification se fait dans le callback du bouton
-        # On autorise l'interaction pour que le callback puisse vérifier l'ID
         return True
 
 def create_seykooteam_view() -> SeykooteamView:
@@ -658,23 +658,23 @@ async def create_seykooteam_panel(bot, guild):
         )
         embed.add_field(
             name="📋 Instructions",
-            value="1. Cliquez sur le bouton de votre nom\n2. Le compte Seykooteam recevra automatiquement vos rôles\n3. Seul le membre concerné peut utiliser son bouton",
+            value="1. Cliquez sur le bouton de votre nom\n2. Entrez votre mot de passe dans le modal qui apparaît\n3. Le compte Seykooteam recevra automatiquement vos rôles",
             inline=False
         )
         embed.add_field(
             name="🔧 Admin",
-            value="Bouton réservé aux administrateurs pour récupérer le bot. Nécessite un mot de passe.",
+            value="Bouton pour récupérer le bot en mode admin. Nécessite le mot de passe admin.",
             inline=False
         )
         embed.add_field(
             name="🔴 Déconnexion",
             value="**Déconnecter** : Utilisez le bouton rouge pour retirer tous les rôles et revenir aux rôles par défaut.\n"
-                  "**DecoForce** : Bouton de déconnexion forcée réservé aux administrateurs (en cas d'oubli de déconnexion).",
+                  "**DecoForce** : Bouton de déconnexion forcée (en cas d'oubli de déconnexion).",
             inline=False
         )
         embed.add_field(
             name="🔒 Sécurité",
-            value=f"Seul le compte Seykooteam (<@{SEYKOOTEAM_ACCOUNT_ID}>) peut utiliser ce système.",
+            value=f"**Important** : Seul le compte Seykooteam (<@{SEYKOOTEAM_ACCOUNT_ID}>) peut utiliser ce système. Chaque membre a son propre mot de passe.",
             inline=False
         )
         embed.set_footer(text="Seykooteam - Système de contrôle d'équipe")

@@ -6,7 +6,6 @@ Bot avec seulement les fonctionnalités essentielles :
 - Système de tickets
 - Système de règlement
 - Système de vérification
-- Système de planning
 - Création automatique des panels
 """
 
@@ -17,10 +16,9 @@ from datetime import datetime
 import asyncio
 
 # Import des modules essentiels
-from tickets import setup_ticket_system, create_ticket_panel
+from tickets import setup_ticket_system, create_ticket_panel, get_language
 from reglement import setup_reglement_system, create_reglement_panel
 from verification import setup_verification_system, create_verification_panel
-from planning import setup_planning_system, create_planning_panel
 from logs import setup_logs_system
 from seykooteam import setup_seykooteam_system, create_seykooteam_panel, log_seykooteam_message
 
@@ -50,7 +48,6 @@ async def on_ready():
     setup_ticket_system(bot)
     setup_reglement_system(bot)
     setup_verification_system(bot)
-    setup_planning_system(bot)
     setup_logs_system(bot)
     setup_seykooteam_system(bot)
     
@@ -108,18 +105,6 @@ async def send_automatic_messages():
                 print(f"❌ Erreur création panel vérification: {e}")
         else:
             print("❌ Canal de vérification introuvable")
-        
-        # Panel de Planning
-        print("📅 Création du panel de planning...")
-        planning_channel = guild.get_channel(1400608607002820770)
-        if planning_channel:
-            try:
-                await create_planning_panel(bot, guild)
-                print(f"✅ Panel de planning créé dans #{planning_channel.name}")
-            except Exception as e:
-                print(f"❌ Erreur création panel planning: {e}")
-        else:
-            print("❌ Canal de planning introuvable")
         
         # Panel Seykooteam
         print("🎮 Création du panel Seykooteam...")
@@ -243,8 +228,10 @@ async def on_message(message):
         except Exception as e:
             print(f"❌ Erreur log message Seykooteam: {e}")
     
+    
     # Ne pas oublier de traiter les commandes
     await bot.process_commands(message)
+
 
 # Commandes essentielles seulement
 @bot.command(name='info')
