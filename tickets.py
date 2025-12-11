@@ -171,9 +171,10 @@ def is_trailer_maker(user: discord.Member) -> bool:
 class LanguageSelectView(discord.ui.View):
     """Vue avec les boutons pour changer la langue du message de bienvenue"""
     
-    def __init__(self, message_id: int):
+    def __init__(self, message_id: int, ticket_type: str):
         super().__init__(timeout=None)
         self.message_id = message_id
+        self.ticket_type = ticket_type
     
     @discord.ui.button(emoji="🇬🇧", style=discord.ButtonStyle.secondary, custom_id=f"lang_switch_en", row=0)
     async def set_english(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -189,11 +190,22 @@ class LanguageSelectView(discord.ui.View):
             # Récupérer le message original depuis l'interaction (le message qui contient le bouton)
             message = interaction.message
             
-            # Créer le nouvel embed avec la nouvelle langue
-            embed = create_commande_welcome_embed(new_lang)
+            # Créer le nouvel embed avec la nouvelle langue selon le type de ticket
+            if self.ticket_type == "commande":
+                embed = create_commande_welcome_embed(new_lang)
+            elif self.ticket_type == "stage":
+                embed = create_stage_welcome_embed(new_lang)
+            elif self.ticket_type == "partenariat":
+                embed = create_partenariat_welcome_embed(new_lang)
+            else:
+                await interaction.response.send_message(
+                    "❌ Type de ticket non supporté pour la traduction.",
+                    ephemeral=True
+                )
+                return
             
             # Recréer la vue (pour maintenir les boutons)
-            view = LanguageSelectView(message.id)
+            view = LanguageSelectView(message.id, self.ticket_type)
             
             # Mettre à jour le message
             await message.edit(embed=embed, view=view)
@@ -286,89 +298,201 @@ def create_commande_welcome_embed(language: str = "fr") -> discord.Embed:
     
     return embed
 
-async def send_stage_welcome_message(channel: discord.TextChannel):
+def create_stage_welcome_embed(language: str = "fr") -> discord.Embed:
     """
-    Envoie le message de bienvenue automatique pour les tickets de type "Stage"
+    Crée l'embed de bienvenue pour les tickets stage dans la langue spécifiée
     
     Args:
-        channel: Le canal du ticket
+        language: La langue (fr, en, es)
+    
+    Returns:
+        L'embed Discord
     """
-    # Créer l'embed de bienvenue pour les stages
+    messages = {
+        "fr": {
+            "content": "**Bonjour, et merci d'avoir ouvert un ticket dédié aux demandes de stage chez SeykooFX 🎓**\n\nAfin de mieux traiter votre candidature ou votre demande d'information, merci de nous préciser :",
+            "infos_title": "📋 Informations à fournir",
+            "infos_content": "• **Le type de stage recherché** (montage, FX, sound design, trailer, communication, etc.)\n• **La durée du stage** souhaitée\n• **Votre établissement scolaire**\n• **Vos compétences ou logiciels maîtrisés**\n• **Vos motivations** et ce que vous souhaitez apprendre",
+            "documents_title": "📄 **Documents recommandés**",
+            "documents_content": "Pour étudier votre profil efficacement, nous vous invitons à joindre :\n\n• Votre **CV**\n• Votre **portfolio**, showreel ou travaux personnels\n• Une **lettre de motivation** (ou quelques lignes expliquant votre démarche)",
+            "footer": "Nous reviendrons vers vous après analyse de votre profil.\n\n**Merci pour votre intérêt et bonne chance dans votre candidature !** 🙌",
+            "signature": "**— SeykooFX | Service Recrutement & Relations Stagiaires**"
+        },
+        "en": {
+            "content": "**Hello, and thank you for opening an internship request ticket at SeykooFX 🎓**\n\nTo better process your application or information request, please let us know:",
+            "infos_title": "📋 Information to Provide",
+            "infos_content": "• **The type of internship** you are looking for (editing, FX, sound design, trailer, communication, etc.)\n• **The desired duration** of the internship\n• **Your educational institution**\n• **Your skills or software you master**\n• **Your motivations** and what you want to learn",
+            "documents_title": "📄 **Recommended Documents**",
+            "documents_content": "To effectively study your profile, we invite you to attach:\n\n• Your **CV**\n• Your **portfolio**, showreel or personal work\n• A **cover letter** (or a few lines explaining your approach)",
+            "footer": "We will get back to you after analyzing your profile.\n\n**Thank you for your interest and good luck with your application!** 🙌",
+            "signature": "**— SeykooFX | Recruitment & Intern Relations Service**"
+        },
+        "es": {
+            "content": "**Hola, y gracias por abrir un ticket dedicado a solicitudes de prácticas en SeykooFX 🎓**\n\nPara procesar mejor tu candidatura o solicitud de información, por favor indícanos:",
+            "infos_title": "📋 Información a Proporcionar",
+            "infos_content": "• **El tipo de prácticas** que buscas (montaje, FX, diseño de sonido, tráiler, comunicación, etc.)\n• **La duración deseada** de las prácticas\n• **Tu institución educativa**\n• **Tus competencias o software que dominas**\n• **Tus motivaciones** y lo que deseas aprender",
+            "documents_title": "📄 **Documentos Recomendados**",
+            "documents_content": "Para estudiar tu perfil eficazmente, te invitamos a adjuntar:\n\n• Tu **CV**\n• Tu **portfolio**, showreel o trabajos personales\n• Una **carta de motivación** (o unas líneas explicando tu enfoque)",
+            "footer": "Te contactaremos después de analizar tu perfil.\n\n**¡Gracias por tu interés y buena suerte con tu candidatura!** 🙌",
+            "signature": "**— SeykooFX | Servicio de Reclutamiento y Relaciones con Practicantes**"
+        }
+    }
+    
+    msg = messages.get(language, messages["fr"])
+    
     embed = discord.Embed(
-        description="**Bonjour, et merci d'avoir ouvert un ticket dédié aux demandes de stage chez SeykooFX 🎓**\n\nAfin de mieux traiter votre candidature ou votre demande d'information, merci de nous préciser :",
+        description=msg["content"],
         color=0x3498db,
         timestamp=datetime.now()
     )
     
     embed.add_field(
-        name="📋 Informations à fournir",
-        value="• **Le type de stage recherché** (montage, FX, sound design, trailer, communication, etc.)\n• **La durée du stage** souhaitée\n• **Votre établissement scolaire**\n• **Vos compétences ou logiciels maîtrisés**\n• **Vos motivations** et ce que vous souhaitez apprendre",
+        name=msg["infos_title"],
+        value=msg["infos_content"],
         inline=False
     )
     
     embed.add_field(
-        name="📄 **Documents recommandés**",
-        value="Pour étudier votre profil efficacement, nous vous invitons à joindre :\n\n• Votre **CV**\n• Votre **portfolio**, showreel ou travaux personnels\n• Une **lettre de motivation** (ou quelques lignes expliquant votre démarche)",
+        name=msg["documents_title"],
+        value=msg["documents_content"],
         inline=False
     )
     
     embed.add_field(
-        name="\u200b",  # Ligne vide
-        value="Nous reviendrons vers vous après analyse de votre profil.\n\n**Merci pour votre intérêt et bonne chance dans votre candidature !** 🙌\n\n**— SeykooFX | Service Recrutement & Relations Stagiaires**",
+        name="\u200b",
+        value=f"{msg['footer']}\n\n{msg['signature']}",
         inline=False
     )
     
     embed.set_footer(text="SeykooFX - Service Recrutement & Relations Stagiaires")
     
-    try:
-        await channel.send(embed=embed)
-        print(f"✅ Message de bienvenue stage envoyé dans {channel.name}")
-    except Exception as e:
-        print(f"❌ Erreur envoi message bienvenue stage: {e}")
+    return embed
 
-async def send_partenariat_welcome_message(channel: discord.TextChannel):
+async def send_stage_welcome_message(channel: discord.TextChannel, language: str = "fr"):
     """
-    Envoie le message de bienvenue automatique pour les tickets de type "Partenariat"
+    Envoie le message de bienvenue automatique pour les tickets de type "Stage"
+    avec des boutons pour changer la langue
     
     Args:
         channel: Le canal du ticket
+        language: La langue initiale (fr, en, es)
     """
-    # Créer l'embed de bienvenue pour les partenariats
+    # Créer l'embed dans la langue initiale
+    embed = create_stage_welcome_embed(language)
+    
+    try:
+        message = await channel.send(embed=embed)
+        
+        # Créer la vue avec l'ID du message et le type de ticket
+        view = LanguageSelectView(message.id, "stage")
+        await message.edit(embed=embed, view=view)
+        
+        print(f"✅ Message de bienvenue stage envoyé dans {channel.name} (langue: {language})")
+    except Exception as e:
+        print(f"❌ Erreur envoi message bienvenue stage: {e}")
+
+def create_partenariat_welcome_embed(language: str = "fr") -> discord.Embed:
+    """
+    Crée l'embed de bienvenue pour les tickets partenariat dans la langue spécifiée
+    
+    Args:
+        language: La langue (fr, en, es)
+    
+    Returns:
+        L'embed Discord
+    """
+    messages = {
+        "fr": {
+            "content": "**Bonjour, et merci d'avoir ouvert un ticket Partenariat chez SeykooFX 🤝**\n\nAfin d'étudier votre proposition de manière efficace, merci de nous préciser :",
+            "infos_title": "📋 Informations à fournir",
+            "infos_content": "• **Le type de partenariat souhaité** (collaboration, échange de services, partenariat commercial…)\n• **Votre structure / projet / entreprise**\n• **Ce que vous recherchez** dans la collaboration\n• **Ce que vous proposez en retour**\n• Tout lien utile : site, réseaux, portfolio, présentation, etc.",
+            "charte_title": "📘 **Avant de continuer : merci de consulter notre Charte de Partenariat**",
+            "charte_content": "Cela vous permettra de vérifier si votre demande correspond à nos critères ⬇️\n\n👉 https://discord.com/channels/1005763703335034970/1435267882572447765",
+            "infos_utiles_title": "🔗 Informations utiles",
+            "infos_utiles_content": "Pour découvrir notre univers et nos réalisations :\n\n🎨 **Nos créations** : https://www.seykoofx.com/creation.html\n\nPour planifier un échange vocal si nécessaire :\n\n📞 **Prendre rendez-vous** : https://www.seykoofx.com/planning-realtime.html",
+            "footer": "Nous analyserons votre proposition avec attention et reviendrons vers vous dans les plus brefs délais.\n\n**Merci pour votre intérêt envers SeykooFX !** ✨",
+            "signature": "**— SeykooFX | Relations Partenaires**"
+        },
+        "en": {
+            "content": "**Hello, and thank you for opening a Partnership ticket at SeykooFX 🤝**\n\nTo effectively study your proposal, please let us know:",
+            "infos_title": "📋 Information to Provide",
+            "infos_content": "• **The type of partnership** you want (collaboration, service exchange, commercial partnership…)\n• **Your structure / project / company**\n• **What you are looking for** in the collaboration\n• **What you offer in return**\n• Any useful links: website, social media, portfolio, presentation, etc.",
+            "charte_title": "📘 **Before Continuing: Please Review Our Partnership Charter**",
+            "charte_content": "This will allow you to verify if your request matches our criteria ⬇️\n\n👉 https://discord.com/channels/1005763703335034970/1435267882572447765",
+            "infos_utiles_title": "🔗 Useful Information",
+            "infos_utiles_content": "To discover our universe and our creations:\n\n🎨 **Our creations** : https://www.seykoofx.com/creation.html\n\nTo schedule a voice exchange if necessary:\n\n📞 **Schedule an appointment** : https://www.seykoofx.com/planning-realtime.html",
+            "footer": "We will analyze your proposal carefully and get back to you as soon as possible.\n\n**Thank you for your interest in SeykooFX!** ✨",
+            "signature": "**— SeykooFX | Partner Relations**"
+        },
+        "es": {
+            "content": "**Hola, y gracias por abrir un ticket de Asociación en SeykooFX 🤝**\n\nPara estudiar tu propuesta de manera eficaz, por favor indícanos:",
+            "infos_title": "📋 Información a Proporcionar",
+            "infos_content": "• **El tipo de asociación** que deseas (colaboración, intercambio de servicios, asociación comercial…)\n• **Tu estructura / proyecto / empresa**\n• **Lo que buscas** en la colaboración\n• **Lo que ofreces a cambio**\n• Cualquier enlace útil: sitio web, redes sociales, portfolio, presentación, etc.",
+            "charte_title": "📘 **Antes de Continuar: Por Favor Consulta Nuestra Carta de Asociación**",
+            "charte_content": "Esto te permitirá verificar si tu solicitud coincide con nuestros criterios ⬇️\n\n👉 https://discord.com/channels/1005763703335034970/1435267882572447765",
+            "infos_utiles_title": "🔗 Información Útil",
+            "infos_utiles_content": "Para descubrir nuestro universo y nuestras creaciones:\n\n🎨 **Nuestras creaciones** : https://www.seykoofx.com/creation.html\n\nPara planificar un intercambio vocal si es necesario:\n\n📞 **Solicitar una cita** : https://www.seykoofx.com/planning-realtime.html",
+            "footer": "Analizaremos tu propuesta con atención y te contactaremos lo antes posible.\n\n**¡Gracias por tu interés en SeykooFX!** ✨",
+            "signature": "**— SeykooFX | Relaciones con Socios**"
+        }
+    }
+    
+    msg = messages.get(language, messages["fr"])
+    
     embed = discord.Embed(
-        description="**Bonjour, et merci d'avoir ouvert un ticket Partenariat chez SeykooFX 🤝**\n\nAfin d'étudier votre proposition de manière efficace, merci de nous préciser :",
+        description=msg["content"],
         color=0x3498db,
         timestamp=datetime.now()
     )
     
     embed.add_field(
-        name="📋 Informations à fournir",
-        value="• **Le type de partenariat souhaité** (collaboration, échange de services, partenariat commercial…)\n• **Votre structure / projet / entreprise**\n• **Ce que vous recherchez** dans la collaboration\n• **Ce que vous proposez en retour**\n• Tout lien utile : site, réseaux, portfolio, présentation, etc.",
+        name=msg["infos_title"],
+        value=msg["infos_content"],
         inline=False
     )
     
     embed.add_field(
-        name="📘 **Avant de continuer : merci de consulter notre Charte de Partenariat**",
-        value="Cela vous permettra de vérifier si votre demande correspond à nos critères ⬇️\n\n👉 https://discord.com/channels/1005763703335034970/1435267882572447765",
+        name=msg["charte_title"],
+        value=msg["charte_content"],
         inline=False
     )
     
     embed.add_field(
-        name="🔗 Informations utiles",
-        value="Pour découvrir notre univers et nos réalisations :\n\n🎨 **Nos créations** : https://www.seykoofx.com/creation.html\n\nPour planifier un échange vocal si nécessaire :\n\n📞 **Prendre rendez-vous** : https://www.seykoofx.com/planning-realtime.html",
+        name=msg["infos_utiles_title"],
+        value=msg["infos_utiles_content"],
         inline=False
     )
     
     embed.add_field(
-        name="\u200b",  # Ligne vide
-        value="Nous analyserons votre proposition avec attention et reviendrons vers vous dans les plus brefs délais.\n\n**Merci pour votre intérêt envers SeykooFX !** ✨\n\n**— SeykooFX | Relations Partenaires**",
+        name="\u200b",
+        value=f"{msg['footer']}\n\n{msg['signature']}",
         inline=False
     )
     
     embed.set_footer(text="SeykooFX - Relations Partenaires")
     
+    return embed
+
+async def send_partenariat_welcome_message(channel: discord.TextChannel, language: str = "fr"):
+    """
+    Envoie le message de bienvenue automatique pour les tickets de type "Partenariat"
+    avec des boutons pour changer la langue
+    
+    Args:
+        channel: Le canal du ticket
+        language: La langue initiale (fr, en, es)
+    """
+    # Créer l'embed dans la langue initiale
+    embed = create_partenariat_welcome_embed(language)
+    
     try:
-        await channel.send(embed=embed)
-        print(f"✅ Message de bienvenue partenariat envoyé dans {channel.name}")
+        message = await channel.send(embed=embed)
+        
+        # Créer la vue avec l'ID du message et le type de ticket
+        view = LanguageSelectView(message.id, "partenariat")
+        await message.edit(embed=embed, view=view)
+        
+        print(f"✅ Message de bienvenue partenariat envoyé dans {channel.name} (langue: {language})")
     except Exception as e:
         print(f"❌ Erreur envoi message bienvenue partenariat: {e}")
 
@@ -389,8 +513,8 @@ async def send_commande_welcome_message(channel: discord.TextChannel, language: 
     try:
         message = await channel.send(embed=embed)
         
-        # Créer la vue avec l'ID du message
-        view = LanguageSelectView(message.id)
+        # Créer la vue avec l'ID du message et le type de ticket
+        view = LanguageSelectView(message.id, "commande")
         await message.edit(embed=embed, view=view)
         
         print(f"✅ Message de bienvenue envoyé dans {channel.name} (langue: {language})")
@@ -670,12 +794,13 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str):
         await ticket_channel.send(embed=embed, view=control_view)
         
         # Envoyer le message automatique selon le type de ticket
+        # Toujours en français par défaut (les boutons de traduction permettent de changer)
         if ticket_type == "commande":
-            await send_commande_welcome_message(ticket_channel, lang)
+            await send_commande_welcome_message(ticket_channel, "fr")
         elif ticket_type == "stage":
-            await send_stage_welcome_message(ticket_channel)
+            await send_stage_welcome_message(ticket_channel, "fr")
         elif ticket_type == "partenariat":
-            await send_partenariat_welcome_message(ticket_channel)
+            await send_partenariat_welcome_message(ticket_channel, "fr")
         
         await interaction.response.send_message(
             get_message("ticket_created", lang, channel=ticket_channel.mention),
@@ -929,7 +1054,7 @@ def setup_ticket_system(bot):
     bot.add_view(TicketControlView())
     # Ajouter la vue pour les boutons de langue (les custom_id sont fixes donc elle fonctionne après redémarrage)
     # Note: On crée une vue temporaire juste pour enregistrer les custom_id
-    temp_view = LanguageSelectView(0)  # ID temporaire, ne sera pas utilisé
+    temp_view = LanguageSelectView(0, "commande")  # ID temporaire, ne sera pas utilisé
     bot.add_view(temp_view)
     # Ajouter les commandes
     bot.add_cog(TicketCommands(bot))
