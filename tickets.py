@@ -1046,6 +1046,65 @@ class TicketCommands(commands.Cog):
             await ctx.channel.delete()
         except Exception as e:
             print(f"❌ Erreur suppression canal: {e}")
+    
+    @commands.command(name="ticketcount")
+    @commands.has_permissions(manage_channels=True)
+    async def ticket_count(self, ctx):
+        """Compte le nombre de tickets ouverts dans chaque catégorie"""
+        lang = get_language(ctx.author)
+        
+        # Noms des catégories pour l'affichage
+        category_names = {
+            "commande": "🛒 Commande",
+            "service_client": "🎧 Service Client",
+            "nous_rejoindre": "👥 Nous Rejoindre",
+            "voix_off": "🎙️ Voix Off",
+            "partenariat": "🤝 Partenariat",
+            "stage": "🎓 Stage"
+        }
+        
+        # Créer l'embed de statistiques
+        embed = discord.Embed(
+            title="📊 Statistiques des Tickets",
+            description="Nombre de tickets ouverts par catégorie",
+            color=0x3498db,
+            timestamp=datetime.now()
+        )
+        
+        total_tickets = 0
+        
+        # Compter les tickets pour chaque catégorie
+        for ticket_type, category_id in TICKET_CATEGORIES.items():
+            category = ctx.guild.get_channel(category_id)
+            if category:
+                # Compter les canaux qui commencent par "ticket-"
+                ticket_count = sum(1 for channel in category.channels if channel.name.startswith("ticket-"))
+                total_tickets += ticket_count
+                
+                category_name = category_names.get(ticket_type, ticket_type.replace("_", " ").title())
+                embed.add_field(
+                    name=category_name,
+                    value=f"**{ticket_count}** ticket(s) ouvert(s)",
+                    inline=True
+                )
+            else:
+                category_name = category_names.get(ticket_type, ticket_type.replace("_", " ").title())
+                embed.add_field(
+                    name=category_name,
+                    value="❌ Catégorie introuvable",
+                    inline=True
+                )
+        
+        # Ajouter le total
+        embed.add_field(
+            name="\u200b",
+            value=f"**📈 Total : {total_tickets} ticket(s) ouvert(s)**",
+            inline=False
+        )
+        
+        embed.set_footer(text="SeykooFX - Statistiques des Tickets")
+        
+        await ctx.send(embed=embed)
 
 def setup_ticket_system(bot):
     """Configure le système de tickets"""
