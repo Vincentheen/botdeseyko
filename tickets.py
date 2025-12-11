@@ -1106,7 +1106,7 @@ class TicketCommands(commands.Cog):
         
         await ctx.send(embed=embed)
 
-def setup_ticket_system(bot):
+async def setup_ticket_system(bot):
     """Configure le système de tickets"""
     # Ajouter les vues persistantes
     bot.add_view(TicketView())
@@ -1117,7 +1117,7 @@ def setup_ticket_system(bot):
     bot.add_view(temp_view)
     # Ajouter les commandes
     try:
-        bot.add_cog(TicketCommands(bot))
+        await bot.add_cog(TicketCommands(bot))
         print("✅ Système de tickets configuré")
         print("   - Commandes chargées: !adduser, !close, !ticketcount")
     except Exception as e:

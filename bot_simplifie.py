@@ -45,7 +45,7 @@ async def on_ready():
     print("------")
     
     # Configuration des systèmes essentiels
-    setup_ticket_system(bot)
+    await setup_ticket_system(bot)
     setup_reglement_system(bot)
     setup_verification_system(bot)
     setup_logs_system(bot)
