@@ -1116,5 +1116,9 @@ def setup_ticket_system(bot):
     temp_view = LanguageSelectView(0, "commande")  # ID temporaire, ne sera pas utilisé
     bot.add_view(temp_view)
     # Ajouter les commandes
-    bot.add_cog(TicketCommands(bot))
-    print("✅ Système de tickets configuré") 
+    try:
+        bot.add_cog(TicketCommands(bot))
+        print("✅ Système de tickets configuré")
+        print("   - Commandes chargées: !adduser, !close, !ticketcount")
+    except Exception as e:
+        print(f"❌ Erreur lors du chargement du cog TicketCommands: {e}") 
